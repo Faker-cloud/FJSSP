@@ -112,12 +112,13 @@ Output: Pareto 前沿近似
 
 两条变异都保持子代合法：OS 交换保持作业多重集不变；MS 块内互换仍为 1..M 的排列。
 
-### 5.4 选择 — 二元锦标赛（已实现）
-随机抽两个不同个体，按字典序 `(rank 升序、crowding 降序)` 取胜者；rank 相同看拥挤距离，拥挤大者胜。
+### 5.4 选择 — 锦标赛 + 环境选择（已实现）
+父代选择（二元锦标赛）：随机抽两个不同个体，按字典序 `(rank 升序、crowding 降序)` 取胜者；rank 相同看拥挤距离，拥挤大者胜。
 
 实现于 `src/nsga2/selection.py`：
 - `tournament_select(population, num_matches, rng)`：读取个体 `.rank`/`.crowding` 属性，摊平成 numpy 数组后向量化批量锦标赛，返回胜者对象。
 - `select_parents(population, num_pairs, rng)`：**先 `rng.permutation` 随机打乱种群顺序**（消除非支配排序/环境选择留下的结构化顺序对平局打破的影响），再做 `2*num_pairs` 场独立锦标赛、两两配对，供 `crossover()` 使用。
+- `select_best(population, n)`：**环境选择（精英保留）**——从已按 rank 升序排好的种群中整前沿保留，对装不下的末前沿按拥挤距离降序截断，选出规模 n 的下一代。
 
 时序约定：选择只在种群完成非支配排序 + 拥挤距离分配后调用（每个体的 `.rank`/`.crowding` 已赋真值；初始种群首代选择前也需先排序 + 算拥挤一次）。`rank`/`crowding`/`makespan`/`twte` 均作为 `FJSSPChromosome` 的瞬时属性存放。
 
