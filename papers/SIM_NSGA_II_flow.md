@@ -83,6 +83,7 @@ Output: Pareto 前沿近似
 | 变异算子（OS 两位交换 + MS 块内互换） | ✅ | `src/nsga2/mutation.py` |
 | 非支配排序 / 拥挤距离 | ✅ | `src/nsga2/sorting.py` |
 | 短/长模拟串联 | ✅ | `src/nsga2/algorithm.py` |
+| 整体流程入口（xlsx 加载 + EO/随机切换 + 两阶段串联） | ✅ | `src/main.py::load_instance / run` |
 
 ## 5. 遗传算子 — 交叉、变异与选择（已确定）
 
