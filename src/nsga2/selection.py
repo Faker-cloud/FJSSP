@@ -4,8 +4,8 @@
   (rank 升序, crowding 降序) 取胜者——
     1. 非支配层级 rank 小者胜（前沿靠前更优）；
     2. rank 相同时拥挤距离 crowding 大者胜（保持多样性）。
-- 环境选择（select_best，供下一代精英保留）：从已按 rank 排好的种群中，
-  整前沿保留 + 对装不下的末前沿按拥挤距离降序截断，选出规模 n 的个体。
+- 环境选择（select_best，供下一代精英保留）：直接消费 fast_non_dominated_sort
+  返回的前沿列表，整前沿保留 + 对装不下的末前沿按拥挤距离降序截断，选出规模 n 的个体。
 
 两个入口都读取种群个体的 `.rank` / `.crowding` 属性。
 
@@ -67,8 +67,8 @@ def select_parents(population: List[FJSSPChromosome], num_pairs: int,
     return list(zip(winners[0::2], winners[1::2]))
 
 
-def select_best(population: List[FJSSPChromosome], n: int) -> List[FJSSPChromosome]:
-    """NSGA-II 环境选择：从已按 rank 升序排好（同一前沿个体相邻）的种群中
+def select_best(fronts: List[List[FJSSPChromosome]], n: int) -> List[FJSSPChromosome]:
+    """NSGA-II 环境选择：从前沿列表（fast_non_dominated_sort 的返回值）中
     选出规模 n 的下一代（精英保留）。
 
     规则（Algorithm 1「按 (前沿等级, 拥挤距离) 从 R 选最优 N 个」）：
@@ -76,35 +76,24 @@ def select_best(population: List[FJSSPChromosome], n: int) -> List[FJSSPChromoso
         2. 当整前沿装不下（再加该前沿会超过 n）时，对该前沿按拥挤距离降序
            截断，取恰好凑满 n 所需的个数（截断前沿内拥挤大者胜出）。
 
-    预条件：population 中每个个体 `.rank` 已赋值且整体按 rank 非降序排列
-    （非支配排序 + 环境选择产生的结果天然满足）。
-    返回长度 n 的新列表（元素为原个体对象引用），不改动输入顺序。
+    预条件：fronts 为按前沿升序排列的列表（同一前沿个体相邻、列表结构即显式
+    分组，无需 rank 值）；各前沿须已完成 crowding_distance_assignment，
+    否则末前沿截断退化为按输入顺序。
+    返回长度 n 的新列表（元素为原个体对象引用），不改动输入。
     """
-    n_total = len(population)
+    n_total = sum(len(fr) for fr in fronts)
     if not 0 <= n <= n_total:
         raise ValueError(f"n={n} 应满足 0 <= n <= 种群规模 {n_total}")
 
-    ranks = np.array([ind.rank for ind in population], dtype=float)
-    if np.any(np.isnan(ranks)):
-        raise ValueError("存在未赋 rank 的个体（rank=None），请先做非支配排序")
-    if np.any(np.diff(ranks) < 0):
-        raise ValueError("种群未按 rank 升序排列，请先排序再调用 select_best")
-
     selected: List[FJSSPChromosome] = []
-    i = 0
-    while i < n_total:
-        j = i
-        while j < n_total and ranks[j] == ranks[i]:
-            j += 1
-        front = population[i:j]
-        if len(selected) + len(front) <= n:
-            selected.extend(front)
+    for fr in fronts:
+        if len(selected) + len(fr) <= n:
+            selected.extend(fr)
         else:
             need = n - len(selected)
-            front_sorted = sorted(front, key=lambda c: c.crowding, reverse=True)
-            selected.extend(front_sorted[:need])
+            fr_sorted = sorted(fr, key=lambda c: c.crowding, reverse=True)
+            selected.extend(fr_sorted[:need])
             break
-        i = j
     return selected
 
 
@@ -168,17 +157,19 @@ if __name__ == "__main__":
     print(f"\nselect_parents 返回 {len(pairs)} 对父代，元素均为种群同引用对象")
 
     # 6. select_best 环境选择：整前沿保留 + 末前沿按拥挤距离降序截断
-    mk = []
-    for rank, crowds in [(0, [0.0, 0.0]), (1, [9.0, 7.0, 5.0]), (2, [8.0, 6.0, 4.0])]:
-        for c in crowds:
-            mk.append(make(rank, c))
-    sel5 = select_best(mk, 5)                       # rank0(2) + rank1(3) 整前沿
+    fronts = [
+        [make(0, c) for c in [0.0, 0.0]],
+        [make(1, c) for c in [9.0, 7.0, 5.0]],
+        [make(2, c) for c in [8.0, 6.0, 4.0]],
+    ]
+    sel5 = select_best(fronts, 5)                   # 前沿0(2) + 前沿1(3) 整前沿
     assert [ind.rank for ind in sel5] == [0, 0, 1, 1, 1]
-    sel4 = select_best(mk, 4)                       # rank1 截断：取 crowding 9,7
+    sel4 = select_best(fronts, 4)                   # 前沿1 截断：取 crowding 9,7
     assert [ind.crowding for ind in sel4] == [0.0, 0.0, 9.0, 7.0]
-    sel7 = select_best(mk, 7)                       # rank2 截断：取 crowding 8,6
+    sel7 = select_best(fronts, 7)                   # 前沿2 截断：取 crowding 8,6
     assert [ind.crowding for ind in sel7] == [0.0, 0.0, 9.0, 7.0, 5.0, 8.0, 6.0]
-    assert select_best(mk, 0) == []
-    assert len(select_best(mk, len(mk))) == len(mk)
-    print("\nselect_best 环境选择通过（整前沿保留 + 末前沿按拥挤截断）")
+    assert select_best(fronts, 0) == []
+    total = sum(len(fr) for fr in fronts)
+    assert len(select_best(fronts, total)) == total
+    print("\nselect_best 环境选择通过（fronts 直传，整前沿保留 + 末前沿按拥挤截断）")
     print("全部断言通过")

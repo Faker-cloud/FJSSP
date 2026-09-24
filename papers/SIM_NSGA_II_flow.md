@@ -47,6 +47,7 @@ Input: 种群规模 N, 代数 G, 交叉率 cr, 变异率 mr
 Output: Pareto 前沿近似
     P ← InitializePopulation(N)              # 基线：随机初始化；EO 版：整群解码自 EO
     ShortSimulation(P)                       # 短 MC 评估 P 的双目标
+    非支配排序 + 拥挤距离(P)                  # 标准 NSGA-II：首代拥挤锦标赛的前置条件
     for g = 1 to G do
         Q ← ∅                                # 空子代种群
         while |Q| < N do
@@ -67,7 +68,7 @@ Output: Pareto 前沿近似
     return P 的 Pareto 前沿近似
 ```
 
-> 注：原文 Algorithm 1 的 OCR 有若干处 `??` 缺失（对应 `Q`、`N` 等符号），此处按语义补全，不改变算法结构。
+> 注：原文 Algorithm 1 的 OCR 有若干处 `??` 缺失（对应 `Q`、`N` 等符号），此处按语义补全，不改变算法结构。「非支配排序 + 拥挤距离(P)」为按标准 NSGA-II 补充的前置步骤（原文 Algorithm 1 未显式给出，但首代拥挤锦标赛依赖 rank/crowding）。
 
 ## 4. 与现有代码的映射
 
@@ -80,8 +81,8 @@ Output: Pareto 前沿近似
 | 二元锦标赛选择 | ✅ | `src/nsga2/selection.py` |
 | 交叉算子（POX + MS 段交叉） | ✅ | `src/nsga2/crossover.py` |
 | 变异算子（OS 两位交换 + MS 块内互换） | ✅ | `src/nsga2/mutation.py` |
-| 非支配排序 / 拥挤距离 | ❌ 待实现 | — |
-| 短/长模拟串联 | ❌ 待实现 | — |
+| 非支配排序 / 拥挤距离 | ✅ | `src/nsga2/sorting.py` |
+| 短/长模拟串联 | ✅ | `src/nsga2/algorithm.py` |
 
 ## 5. 遗传算子 — 交叉、变异与选择（已确定）
 
@@ -118,12 +119,12 @@ Output: Pareto 前沿近似
 实现于 `src/nsga2/selection.py`：
 - `tournament_select(population, num_matches, rng)`：读取个体 `.rank`/`.crowding` 属性，摊平成 numpy 数组后向量化批量锦标赛，返回胜者对象。
 - `select_parents(population, num_pairs, rng)`：**先 `rng.permutation` 随机打乱种群顺序**（消除非支配排序/环境选择留下的结构化顺序对平局打破的影响），再做 `2*num_pairs` 场独立锦标赛、两两配对，供 `crossover()` 使用。
-- `select_best(population, n)`：**环境选择（精英保留）**——从已按 rank 升序排好的种群中整前沿保留，对装不下的末前沿按拥挤距离降序截断，选出规模 n 的下一代。
+- `select_best(fronts, n)`：**环境选择（精英保留）**——直接接收 `fast_non_dominated_sort` 返回的前沿列表，整前沿保留，对装不下的末前沿按拥挤距离降序截断，选出规模 n 的下一代。
 
 时序约定：选择只在种群完成非支配排序 + 拥挤距离分配后调用（每个体的 `.rank`/`.crowding` 已赋真值；初始种群首代选择前也需先排序 + 算拥挤一次）。`rank`/`crowding`/`makespan`/`twte` 均作为 `FJSSPChromosome` 的瞬时属性存放。
 
 ## 6. 遗留待定项（实现前需再确认）
 
-- **模拟次数**：短模拟 `S_short`（被删除的旧代码用 10，当前 `fjssp_evaluation` 默认 20）、长模拟 `S_long`，均待确认。
+- **模拟次数**：暂定短 `S_short=20`、长 `S_long=1000`（`SimNSGAII` 参数可覆盖；最终值以论文 §5 实验为准）。
 - **目标方向**：两目标均为最小化。旧代码目标序为 `[twte, makespan]`，现 `compute_objectives` 返回 `(makespan, twte)`，仅影响标签，不影响逻辑。
 - **`Machines Sequence` 表**：数据集中的机器序列表**不用作固定指派**（已确认 MS 作为决策变量参与进化）。
