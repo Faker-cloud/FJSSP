@@ -14,6 +14,7 @@ from typing import Dict, List
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import pandas as pd
 
 from src.nsga2.algorithm import SimNSGAII
 
@@ -79,5 +80,71 @@ def save_run_figures(directory, *, ul: float, run_idx: int,
     return paths
 
 
+_GAP_BOXPLOTS = (("gap_makespan", "Makespan gap", "gap_makespan_boxplot.png"),
+                 ("gap_twte", "TWTE gap", "gap_twte_boxplot.png"))
+_BOX_OFFSET = 0.18
+
+
+def save_gap_boxplots(data, output_dir=None) -> List[Path]:
+    """用已有 gap 汇总画箱线图（纵轴 gap、横轴 UL，每个 UL 并排 EO/基线两箱）。
+
+    data：tidy DataFrame（含 uncertain_level / algorithm / gap_makespan / gap_twte）
+          或已导出的 xlsx 路径；不重跑算法，直接复用 best-of-30 gap。
+    分布 = 同一 UL 下所有数据集的 gap 值（每箱 9 点 = 9 个算例）。
+    """
+    if isinstance(data, (str, Path)):
+        data = pd.read_excel(data)
+    df = data
+    for col in ("uncertain_level", "algorithm", "gap_makespan", "gap_twte"):
+        if col not in df.columns:
+            raise ValueError(f"gap 箱线图输入缺少列：{col}")
+
+    out_dir = Path(output_dir) if output_dir is not None else Path("results/figures")
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    algorithms = list(ALGO_COLORS.keys())   # EO 在前（左箱），基线在后（右箱）
+    uls = sorted(pd.unique(df["uncertain_level"]))
+    paths: List[Path] = []
+
+    for col, ylabel, fname in _GAP_BOXPLOTS:
+        fig, ax = plt.subplots(figsize=(7, 5))
+        legend_handles = []
+        for j, alg in enumerate(algorithms):
+            values, positions = [], []
+            for i, ul in enumerate(uls):
+                sel = df[(df["uncertain_level"] == ul) & (df["algorithm"] == alg)]
+                values.append(sel[col].to_numpy())
+                positions.append(i + _BOX_OFFSET * (2 * j - 1))
+            bp = ax.boxplot(
+                values, positions=positions, widths=0.3, patch_artist=True,
+                boxprops=dict(facecolor=ALGO_COLORS[alg], alpha=0.55,
+                              edgecolor=ALGO_COLORS[alg], linewidth=1.2),
+                whiskerprops=dict(color=ALGO_COLORS[alg]),
+                capprops=dict(color=ALGO_COLORS[alg]),
+                medianprops=dict(color="#0b0b0b", linewidth=2),
+                flierprops=dict(marker="o", markerfacecolor=ALGO_COLORS[alg],
+                                markersize=5, alpha=0.7,
+                                markeredgecolor=ALGO_COLORS[alg]))
+            legend_handles.append(bp["boxes"][0])
+
+        ax.set_xticks(list(range(len(uls))))
+        ax.set_xticklabels([str(u) for u in uls])
+        ax.set_xlabel("Uncertainty level (UL)")
+        ax.set_ylabel(ylabel)
+        ax.set_title(f"{ylabel} by uncertainty level")
+        ax.legend(legend_handles, algorithms, frameon=False)
+        _style_axes(ax)
+        out = out_dir / fname
+        fig.savefig(out, dpi=300, bbox_inches="tight")
+        plt.close(fig)
+        paths.append(out)
+    return paths
+
+
 if __name__ == "__main__":
-    print()
+    src = Path("results/experiments.xlsx")
+    if src.exists():
+        for f in save_gap_boxplots(src):
+            print("已生成：", f)
+    else:
+        print(f"未找到 {src}，请先运行 run_experiments 生成结果表")

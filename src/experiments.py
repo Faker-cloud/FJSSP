@@ -15,8 +15,9 @@
 NSGA-II 演化用同一种子流 `[base_seed, 算例, 运行, 0]`（MC 场景、锦标赛、交叉变异
 抽样序列一致，配对比较），EO 阶段独立流 `[base_seed, 算例, 运行, 1]`；不同运行种子不同，
 且**种子不含 UL**——同一数据集下不同 UL 水平的同一 run 复用同一种子。
-figures=True 时每个 run 同时生成三张两算法对比图（Pareto / makespan 收敛 / twte 收敛，
-见 src/plotting.py），与统计共用同一次演化，不重复计算。
+figures=True 时每个 run 生成三张两算法对比图（Pareto / makespan 收敛 / twte 收敛，
+见 src/plotting.py），并在全部算例跑完后按同一份 df 另画两张跨算例 gap 箱线图，
+与统计共用同一次演化，不重复计算。
 """
 
 import time
@@ -29,7 +30,7 @@ import pandas as pd
 from src.eo.equilibrium_optimizer import EquilibriumOptimizer
 from src.main import Instance, load_instance
 from src.nsga2.algorithm import SimNSGAII
-from src.plotting import save_run_figures
+from src.plotting import save_run_figures, save_gap_boxplots
 
 ALGORITHMS = ("EO-Sim-NSGA-II", "Sim-NSGA-II")   # 下标 0 = EO 版，1 = 基线
 
@@ -174,6 +175,8 @@ def run_experiments(instance_paths: Sequence[str],
     df.to_excel(out, index=False)
     if verbose:
         print(f"已导出 {len(df)} 行 → {out}")
+    if figures:
+        save_gap_boxplots(df, output_dir=figures_dir)
     return df
 
 
