@@ -6,13 +6,15 @@
     - f_d：每算例跑 2 次确定性版本（sim=False）——确定性 EO-NSGA-II（EO 行的分母）
       与确定性 NSGA-II（基线行的分母），即每个随机版本与自己的确定性对照比 gap；
     - gap（论文 Eq.15）：Δ_o = (f_s − f_d) / f_d，导出为小数比例（非百分数）；
-    - NPS（Pareto 解个数）与 CPU Time（仅计 NSGA-II 演化阶段，EO 初始化不计）取均值。
+    - NPS（Pareto 解个数）与 CPU Time（仅计 NSGA-II 演化阶段，EO 初始化不计）取均值；
+      NPS 为平均前沿解个数，取均值后四舍五入取整。
 
 结果导出为单 sheet 汇总表（tidy，每行 = 算例 × UL × 算法）。
 参数默认值取自论文 Table 2（N=100、G=400、cr=0.8、mr=0.2、EO 100 代、短 20 / 长 10000），
-均可覆盖。随机版种子为**配对方案**（公共随机数）：每个 (算例, UL, 运行) 内两算法的
-NSGA-II 演化用同一种子流 `[base_seed, 算例, UL, 运行, 0]`（MC 场景、锦标赛、交叉变异
-抽样序列一致，配对比较），EO 阶段独立流 `[base_seed, 算例, UL, 运行, 1]`；不同运行种子不同。
+均可覆盖。随机版种子为**配对方案**（公共随机数）：每个 (算例, 运行) 内两算法的
+NSGA-II 演化用同一种子流 `[base_seed, 算例, 运行, 0]`（MC 场景、锦标赛、交叉变异
+抽样序列一致，配对比较），EO 阶段独立流 `[base_seed, 算例, 运行, 1]`；不同运行种子不同，
+且**种子不含 UL**——同一数据集下不同 UL 水平的同一 run 复用同一种子。
 figures=True 时每个 run 同时生成三张两算法对比图（Pareto / makespan 收敛 / twte 收敛，
 见 src/plotting.py），与统计共用同一次演化，不重复计算。
 """
@@ -111,8 +113,9 @@ def run_experiments(instance_paths: Sequence[str],
             stats = {algo: {"best_mk": np.inf, "best_tw": np.inf,
                             "nps": 0, "cpu": 0.0} for algo in ALGORITHMS}
             for run_idx in range(num_runs):
-                nsga_seed = [base_seed, inst_idx, ul_idx, run_idx, 0]
-                eo_seed = [base_seed, inst_idx, ul_idx, run_idx, 1]
+                # 种子不含 ul_idx：同一数据集下不同 UL 水平的同一 run 用同一种子
+                nsga_seed = [base_seed, inst_idx, run_idx, 0]
+                eo_seed = [base_seed, inst_idx, run_idx, 1]
                 results = {}
                 for algo_idx, algo_name in enumerate(ALGORITHMS):
                     alg, cpu = _run_once(
@@ -152,7 +155,7 @@ def run_experiments(instance_paths: Sequence[str],
                     "f_d_twte": fd_tw,
                     "gap_makespan": (st["best_mk"] - fd_mk) / fd_mk,
                     "gap_twte": (st["best_tw"] - fd_tw) / fd_tw,
-                    "nps_mean": st["nps"] / num_runs,
+                    "nps_mean": round(st["nps"] / num_runs),
                     "cpu_time_mean": st["cpu"] / num_runs,
                 })
                 if verbose:
@@ -161,7 +164,7 @@ def run_experiments(instance_paths: Sequence[str],
                           f"f_s=({row['f_s_makespan']:.2f}, {row['f_s_twte']:.2f}), "
                           f"gap=({row['gap_makespan']:.4f}, "
                           f"{row['gap_twte']:.4f}), "
-                          f"NPS_mean={row['nps_mean']:.1f}, "
+                          f"NPS_mean={row['nps_mean']}, "
                           f"CPU_mean={row['cpu_time_mean']:.3f}s")
 
     df = pd.DataFrame(rows, columns=_COLUMNS)

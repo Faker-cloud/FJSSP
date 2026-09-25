@@ -84,6 +84,8 @@ Output: Pareto 前沿近似
 | 非支配排序 / 拥挤距离 | ✅ | `src/nsga2/sorting.py` |
 | 短/长模拟串联 | ✅ | `src/nsga2/algorithm.py` |
 | 整体流程入口（xlsx 加载 + EO/随机切换 + 两阶段串联） | ✅ | `src/main.py::load_instance / run` |
+| 实验层（30 次重复 + f_s/f_d/gap/NPS/CPU 统计 + xlsx 导出） | ✅ | `src/experiments.py::run_experiments` |
+| 绘图原语（每 run 三张两算法对比图，与统计共用同一次演化） | ✅ | `src/plotting.py::save_run_figures` |
 
 ## 5. 遗传算子 — 交叉、变异与选择（已确定）
 
@@ -126,6 +128,6 @@ Output: Pareto 前沿近似
 
 ## 6. 遗留待定项（实现前需再确认）
 
-- **模拟次数**：暂定短 `S_short=20`、长 `S_long=1000`（`SimNSGAII` 参数可覆盖；最终值以论文 §5 实验为准）。
+- **模拟次数**：已按论文 Table 2 落实——短 `S_short=20`、长 `S_long=10000`（实验层 `run_experiments` 的默认值；`SimNSGAII` 参数仍可覆盖）。
 - **目标方向**：两目标均为最小化。旧代码目标序为 `[twte, makespan]`，现 `compute_objectives` 返回 `(makespan, twte)`，仅影响标签，不影响逻辑。
 - **`Machines Sequence` 表**：数据集中的机器序列表**不用作固定指派**（已确认 MS 作为决策变量参与进化）。

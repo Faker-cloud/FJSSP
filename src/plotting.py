@@ -60,7 +60,7 @@ def save_run_figures(directory, *, ul: float, run_idx: int,
     plt.close(fig)
     paths.append(out)
 
-    # 2/3. 收敛曲线（横轴迭代 1..G，纵轴每代合并种群最优，两算法同图）
+    # 2/3. 收敛曲线（横轴迭代 1..G，纵轴每代选择后种群(N)的最优，两算法同图）
     for objective, attr, fname in _CONVERGENCE:
         fig, ax = plt.subplots(figsize=(7, 5))
         for algo_name, alg in results.items():

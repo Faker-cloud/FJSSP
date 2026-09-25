@@ -66,7 +66,9 @@ class SimNSGAII:
         # 运行结果（optimize() 后填充）
         self.population: List[FJSSPChromosome] = []
         self.pareto_front: List[FJSSPChromosome] = []
-        self.history: List[int] = []
+        self.history: List[int] = []               # 每代 F0 规模（合并 2N 口径）
+        self.history_makespan: List[float] = []    # 每代合并种群的最优 makespan（收敛图）
+        self.history_twte: List[float] = []        # 每代合并种群的最优 twte（收敛图）
 
     # ---------- 初始化（预留接口） ----------
 
@@ -126,6 +128,8 @@ class SimNSGAII:
             crowding_distance_assignment(fr)
 
         self.history = []
+        self.history_makespan = []
+        self.history_twte = []
         for _ in range(g):
             offspring = self._generate_offspring(population)
             self._evaluate_population(offspring, self.s_short)
@@ -136,6 +140,9 @@ class SimNSGAII:
                 crowding_distance_assignment(fr)
             population = select_best(fronts, n)
             self.history.append(len(fronts[0]))
+            # 收敛序列：环境选择后存活种群(N)的最优——只有被选中的个体才是该代得到的解
+            self.history_makespan.append(min(c.makespan for c in population))
+            self.history_twte.append(min(c.twte for c in population))
 
         # 末代长模拟重评价，并重排序取最终 Pareto 前沿
         self._evaluate_population(population, self.s_long)
@@ -169,6 +176,9 @@ if __name__ == "__main__":
     assert len(alg.pareto_front) >= 1
     assert all(np.isfinite(c.makespan) and np.isfinite(c.twte) for c in alg.population)
     assert len(alg.history) == 5
+    assert len(alg.history_makespan) == 5 and len(alg.history_twte) == 5
+    assert all(np.isfinite(alg.history_makespan))
+    assert all(np.isfinite(alg.history_twte))
     print("确定性跑通：population=20，pareto_front=", len(alg.pareto_front),
           "，history=", alg.history)
 
