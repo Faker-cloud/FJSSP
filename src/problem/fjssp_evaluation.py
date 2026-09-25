@@ -71,6 +71,31 @@ def _schedule_job_completions(ops: np.ndarray, processing_times: np.ndarray) -> 
     return job_ready
 
 
+def schedule_trace(chromosome: FJSSPChromosome, processing_times) -> np.ndarray:
+    """按 semi-active 贪心规则排程，返回完整调度轨迹。
+
+    返回 (N, 5) 数组，列依次为 (作业号, 操作序号, 机器号, 开工时间, 完工时间)，均 1 起，
+    行顺序即调度顺序（同 chromosome.decode()）。仅甘特图等展示用途，MC 评估热路径不用。
+    """
+    processing_times = np.asarray(processing_times, dtype=float)
+    ops = chromosome.decode()
+    num_jobs = chromosome.num_jobs
+    num_machines = chromosome.num_machines
+    job_ready = np.zeros(num_jobs)
+    machine_ready = np.zeros(num_machines)
+    starts = np.zeros(ops.shape[0])
+    finishes = np.zeros(ops.shape[0])
+    for idx, (job, op, machine) in enumerate(ops):
+        j, o, m = job - 1, op - 1, machine - 1
+        start = max(job_ready[j], machine_ready[m])
+        finish = start + processing_times[j, o]
+        starts[idx] = start
+        finishes[idx] = finish
+        job_ready[j] = finish
+        machine_ready[m] = finish
+    return np.column_stack((ops, starts, finishes))
+
+
 def _schedule_makespan(ops: np.ndarray, processing_times: np.ndarray) -> float:
     """按 semi-active 规则调度，返回 makespan（= max 各作业完工时间）。"""
     return float(_schedule_job_completions(ops, processing_times).max())

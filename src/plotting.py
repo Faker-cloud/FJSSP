@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 from src.nsga2.algorithm import SimNSGAII
+from src.problem.fjssp_evaluation import sample_scenario, schedule_trace
 
 ALGO_COLORS = {"EO-Sim-NSGA-II": "#2a78d6", "Sim-NSGA-II": "#eb6834"}
 
@@ -139,6 +140,54 @@ def save_gap_boxplots(data, output_dir=None) -> List[Path]:
         plt.close(fig)
         paths.append(out)
     return paths
+
+
+def save_gantt(chromosome, processing_times, *, ul: float, run_idx: int,
+               rng, output_dir) -> Path:
+    """画单个解的甘特图（横轴 = 时间，纵轴 = 机器，对齐论文 Fig.3）。
+
+    加工时间用该 UL 下采样一次的对数正态场景；每机器一条泳道，每道操作一条横向条，
+    颜色按作业（tab20 循环）、条内标注操作序号 O_k（k = 该作业第 k 道操作）；
+    右侧图例列出「作业 → 颜色」（作业为颜色主标识，颜色仅辅助区分）。
+    """
+    scenario = sample_scenario(processing_times, ul, rng)
+    trace = schedule_trace(chromosome, scenario)   # (N,5): job, op, machine, start, finish
+
+    job_colors = plt.cm.tab20.colors
+    num_machines = chromosome.num_machines
+    num_jobs = chromosome.num_jobs
+
+    fig, ax = plt.subplots(figsize=(10, max(3, 0.45 * num_machines + 1)))
+    for job, op, machine, start, finish in trace:
+        j = int(job)
+        y = int(machine) - 1
+        ax.barh(y, finish - start, left=start, height=0.7,
+                color=job_colors[(j - 1) % len(job_colors)],
+                edgecolor="white", linewidth=0.5)
+        ax.text(start + (finish - start) / 2.0, y, f"O{int(op)}",
+                ha="center", va="center", fontsize=8, color="#0b0b0b")
+
+    ax.set_yticks(list(range(num_machines)))
+    ax.set_yticklabels([f"M{i + 1}" for i in range(num_machines)])
+    ax.set_xlim(left=0)
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Machine")
+    ax.set_title(f"Gantt (UL={ul}, run {run_idx:02d})")
+    _style_axes(ax)
+
+    # 右侧图例：作业 → 颜色（多作业时分列）
+    handles = [plt.Rectangle((0, 0), 1, 1, facecolor=job_colors[(j - 1) % len(job_colors)])
+               for j in range(1, num_jobs + 1)]
+    leg = ax.legend(handles, [f"Job {j}" for j in range(1, num_jobs + 1)],
+                    loc="center left", bbox_to_anchor=(1.02, 0.5), frameon=False,
+                    fontsize=8, ncol=max(1, (num_jobs + 14) // 15))
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    out = output_dir / "gantt.png"
+    fig.savefig(out, dpi=300, bbox_inches="tight", bbox_extra_artists=(leg,))
+    plt.close(fig)
+    return out
 
 
 if __name__ == "__main__":
