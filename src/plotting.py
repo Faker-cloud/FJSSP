@@ -16,8 +16,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from src.nsga2.algorithm import SimNSGAII
-from src.problem.fjssp_evaluation import sample_scenario, schedule_trace
+from src.algorithms.nsga2.algorithm import SimNSGAII
+from src.evaluation import sample_scenario, schedule_trace
 
 ALGO_COLORS = {"EO-Sim-NSGA-II": "#2a78d6", "Sim-NSGA-II": "#eb6834"}
 

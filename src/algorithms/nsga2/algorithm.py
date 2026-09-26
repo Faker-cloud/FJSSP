@@ -1,14 +1,14 @@
 """SIM-NSGA-II 主循环（论文 Algorithm 1）。
 
-把 NSGA-II 各算子串成完整演化流程：
-    初始化（随机 / EO 整群解码，可切换）→ 短模拟评估 →
+把 NSGA-II 各算子串成完整演化流程（初始种群由调用方提供）：
+    短模拟评估 →
     每代：选父代 → 交叉(cr)/复制 → 变异(mr) → 子代短模拟评估 →
           合并 2N → 非支配排序 + 拥挤距离 → 环境选择 N →
     末代：长模拟重评价 → 重排序取 Pareto 前沿。
 
 三个实现约定（用户要求）：
-1. 初始化预留接口：构造参数 initial_population 填 None 即随机初始化（基线 Sim-NSGA-II），
-   填 EO 整群解码的染色体即 EO-Sim-NSGA-II；由调用方把两者接起来，主模块不与 EO 硬耦合。
+1. 初始种群由调用方构建后作为 optimize(initial_population) 传入（随机初始化 / EO 整群
+   解码都在调用方完成）；本模块不与 EO 硬耦合。
 2. 评估跟随 sim 开关：sim=True 走蒙特卡洛（短模拟 s_short、末代长模拟 s_long），
    sim=False 走确定性单次评估。
 3. 不做种群修复：交叉/变异/随机/EO 解码都保证染色体合法，主循环不调用任何修复逻辑。
@@ -18,12 +18,12 @@ from typing import List, Optional
 
 import numpy as np
 
-from src.problem.fjssp_chromosome import FJSSPChromosome
-from src.problem.fjssp_evaluation import compute_objectives
-from src.nsga2.crossover import crossover
-from src.nsga2.mutation import mutate
-from src.nsga2.selection import select_parents, select_best
-from src.nsga2.sorting import fast_non_dominated_sort, crowding_distance_assignment
+from src.data_structures.chromosome import FJSSPChromosome
+from src.evaluation import compute_objectives
+from src.algorithms.nsga2.crossover import crossover
+from src.algorithms.nsga2.mutation import mutate
+from src.algorithms.nsga2.selection import select_parents, select_best
+from src.algorithms.nsga2.sorting import fast_non_dominated_sort, crowding_distance_assignment
 
 
 class SimNSGAII:
@@ -34,7 +34,6 @@ class SimNSGAII:
                  crossover_rate: float = 0.9, mutation_rate: float = 0.1,
                  uncertain_level: float = 0.1, sim: bool = True,
                  s_short: int = 20, s_long: int = 1000,
-                 initial_population: Optional[List[FJSSPChromosome]] = None,
                  rng: Optional[np.random.Generator] = None):
         self.num_jobs = num_jobs
         self.num_machines = num_machines
@@ -60,7 +59,6 @@ class SimNSGAII:
         self.sim = sim
         self.s_short = s_short
         self.s_long = s_long
-        self.initial_population = initial_population
         self.rng = rng if rng is not None else np.random.default_rng()
 
         # 运行结果（optimize() 后填充）
@@ -69,18 +67,6 @@ class SimNSGAII:
         self.history: List[int] = []               # 每代 F0 规模（合并 2N 口径）
         self.history_makespan: List[float] = []    # 每代合并种群的最优 makespan（收敛图）
         self.history_twte: List[float] = []        # 每代合并种群的最优 twte（收敛图）
-
-    # ---------- 初始化（预留接口） ----------
-
-    def _initialize(self) -> List[FJSSPChromosome]:
-        n = self.population_size
-        if self.initial_population is None:
-            return [FJSSPChromosome.random(self.num_jobs, self.num_machines, self.rng)
-                    for _ in range(n)]
-        if len(self.initial_population) != n:
-            raise ValueError(
-                f"初始种群规模应为 {n}，实际为 {len(self.initial_population)}")
-        return list(self.initial_population)
 
     # ---------- 评估（跟随 sim 开关） ----------
 
@@ -117,10 +103,13 @@ class SimNSGAII:
 
     # ---------- 主循环 ----------
 
-    def optimize(self) -> "SimNSGAII":
+    def optimize(self, initial_population: List[FJSSPChromosome]) -> "SimNSGAII":
         n, g = self.population_size, self.num_generations
+        if len(initial_population) != n:
+            raise ValueError(
+                f"初始种群规模应为 {n}，实际为 {len(initial_population)}")
 
-        population = self._initialize()
+        population = list(initial_population)
         self._evaluate_population(population, self.s_short)
         # 首代锦标赛选择的前置条件：初始种群先排序 + 算拥挤（时序约定见 selection.py）
         fronts = fast_non_dominated_sort(population)
@@ -170,8 +159,10 @@ if __name__ == "__main__":
     J = M = 3
 
     # 1. 确定性跑通（sim=False）
+    init1 = [FJSSPChromosome.random(J, M, np.random.default_rng(100 + i))
+             for i in range(20)]
     alg = SimNSGAII(J, M, pt, pr, dd, population_size=20, num_generations=5,
-                    sim=False, rng=np.random.default_rng(1)).optimize()
+                    sim=False, rng=np.random.default_rng(1)).optimize(init1)
     assert len(alg.population) == 20 and all_valid(alg.population)
     assert len(alg.pareto_front) >= 1
     assert all(np.isfinite(c.makespan) and np.isfinite(c.twte) for c in alg.population)
@@ -183,9 +174,11 @@ if __name__ == "__main__":
           "，history=", alg.history)
 
     # 2. MC 跑通（sim=True，短/长模拟分别用 s_short/s_long）
+    init2 = [FJSSPChromosome.random(J, M, np.random.default_rng(200 + i))
+             for i in range(12)]
     alg2 = SimNSGAII(J, M, pt, pr, dd, population_size=12, num_generations=3,
                      sim=True, s_short=10, s_long=50,
-                     rng=np.random.default_rng(2)).optimize()
+                     rng=np.random.default_rng(2)).optimize(init2)
     assert all(np.isfinite(c.makespan) and np.isfinite(c.twte) for c in alg2.population)
     print("MC 跑通：pareto_front[0] makespan =",
           round(alg2.pareto_front[0].makespan, 3),
@@ -195,24 +188,21 @@ if __name__ == "__main__":
     # 3b. 传入预构建的合法种群
     init = [FJSSPChromosome.random(J, M, np.random.default_rng(i)) for i in range(20)]
     alg3 = SimNSGAII(J, M, pt, pr, dd, population_size=20, num_generations=2,
-                     sim=False, initial_population=init,
-                     rng=np.random.default_rng(3)).optimize()
+                     sim=False, rng=np.random.default_rng(3)).optimize(init)
     assert len(alg3.population) == 20 and all_valid(alg3.population)
     # 3c. EO 整群解码 → initial_population 交接
-    from src.eo.equilibrium_optimizer import EquilibriumOptimizer
+    from src.algorithms.eo.optimizer import EquilibriumOptimizer
     eo = EquilibriumOptimizer(J, M, pt, population_size=20, max_iter=30,
                               rng=np.random.default_rng(4)).optimize()
     eo_init = eo.chromosomes()
     assert all_valid(eo_init)
     alg4 = SimNSGAII(J, M, pt, pr, dd, population_size=20, num_generations=2,
-                     sim=False, initial_population=eo_init,
-                     rng=np.random.default_rng(5)).optimize()
+                     sim=False, rng=np.random.default_rng(5)).optimize(eo_init)
     assert all_valid(alg4.population)
     # 3d. 规模 ≠ N 报错
     try:
         SimNSGAII(J, M, pt, pr, dd, population_size=20, num_generations=1,
-                  sim=False, initial_population=init[:5],
-                  rng=np.random.default_rng(6)).optimize()
+                  sim=False, rng=np.random.default_rng(6)).optimize(init[:5])
         raise SystemExit("应已抛 ValueError")
     except ValueError:
         pass
@@ -252,8 +242,10 @@ if __name__ == "__main__":
                 self._first_parents = list(parents)
             return super()._generate_offspring(parents)
 
+    init7 = [FJSSPChromosome.random(J, M, np.random.default_rng(900 + i))
+             for i in range(10)]
     spy = _SpyNSGAII(J, M, pt, pr, dd, population_size=10, num_generations=1,
-                     sim=False, rng=np.random.default_rng(9)).optimize()
+                     sim=False, rng=np.random.default_rng(9)).optimize(init7)
     assert all(c.rank is not None for c in spy._first_parents)
     assert all(np.isfinite(c.crowding) or c.crowding == float("inf")
                for c in spy._first_parents)

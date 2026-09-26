@@ -25,7 +25,7 @@ from typing import Tuple
 
 import numpy as np
 
-from src.problem.fjssp_chromosome import FJSSPChromosome
+from src.data_structures.chromosome import FJSSPChromosome
 
 
 def _sample_job_subset(num_jobs: int, rng: np.random.Generator) -> np.ndarray:

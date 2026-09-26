@@ -33,7 +33,7 @@ from typing import Optional
 
 import numpy as np
 
-from src.problem.fjssp_chromosome import FJSSPChromosome
+from src.data_structures.chromosome import FJSSPChromosome
 
 
 def random_keys_to_chromosome(x, num_jobs: int, num_machines: int) -> FJSSPChromosome:

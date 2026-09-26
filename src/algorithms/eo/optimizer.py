@@ -23,9 +23,9 @@ from typing import List, Optional
 
 import numpy as np
 
-from src.eo.eo_particle import EOParticle, random_keys_to_chromosome
-from src.problem.fjssp_chromosome import FJSSPChromosome
-from src.problem.fjssp_evaluation import compute_makespan
+from src.data_structures.particle import EOParticle, random_keys_to_chromosome
+from src.data_structures.chromosome import FJSSPChromosome
+from src.evaluation import compute_makespan
 
 
 class EquilibriumOptimizer:

@@ -1,0 +1,1 @@
+"""Equilibrium Optimizer（EO）阶段：以单目标确定性 makespan 优化连续随机键种群。"""

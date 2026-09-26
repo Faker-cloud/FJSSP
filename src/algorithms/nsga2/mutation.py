@@ -18,7 +18,7 @@ from typing import Optional
 
 import numpy as np
 
-from src.problem.fjssp_chromosome import FJSSPChromosome
+from src.data_structures.chromosome import FJSSPChromosome
 
 
 def os_swap_mutation(os: np.ndarray, rng: np.random.Generator) -> np.ndarray:

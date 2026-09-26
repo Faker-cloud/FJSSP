@@ -18,7 +18,7 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 
-from src.problem.fjssp_chromosome import FJSSPChromosome
+from src.data_structures.chromosome import FJSSPChromosome
 
 
 def _is_better(rank_a, rank_b, crowd_a, crowd_b) -> bool:

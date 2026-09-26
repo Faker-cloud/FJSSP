@@ -29,7 +29,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 
-from src.problem.fjssp_chromosome import FJSSPChromosome
+from src.data_structures.chromosome import FJSSPChromosome
 
 
 def lognormal_params(mean_pt, uncertain_level: float) -> Tuple[np.ndarray, np.ndarray]:
@@ -248,7 +248,7 @@ if __name__ == "__main__":
           "(应略高于 4，对数正态场景下同一调度的期望 makespan >= 确定值)")
 
     # 10-5 实例全链路：随机粒子 -> 解码 -> 确定性/模拟 makespan
-    from src.eo.eo_particle import EOParticle
+    from src.data_structures.particle import EOParticle
     chromosome = EOParticle.random(10, 5, rng=np.random.default_rng(7)).to_chromosome()
     pt = np.full((10, 5), 5.0)
     print("\n10-5 实例随机解:")

@@ -12,14 +12,14 @@
     fronts = fast_non_dominated_sort(R)       # R = 父代 ∪ 子代（已短模拟评估）
     for fr in fronts:
         crowding_distance_assignment(fr)
-    P = select_best(fronts, N)                # from src.nsga2.selection
+    P = select_best(fronts, N)                # from src.algorithms.nsga2.selection
 """
 
 from typing import List
 
 import numpy as np
 
-from src.problem.fjssp_chromosome import FJSSPChromosome
+from src.data_structures.chromosome import FJSSPChromosome
 
 
 def _objective_matrix(population: List[FJSSPChromosome]) -> np.ndarray:
@@ -138,7 +138,7 @@ if __name__ == "__main__":
     print("退化用例通过")
 
     # 5. 与 select_best 衔接：排序 + 拥挤 → 前沿直传截断
-    from src.nsga2.selection import select_best
+    from src.algorithms.nsga2.selection import select_best
     pop2 = [_make(m, t) for m, t in [(1.0, 3.0), (2.0, 2.0), (3.0, 1.0),   # F0
                                      (2.0, 5.0), (3.0, 4.0), (4.0, 3.0)]]  # F1
     fronts2 = fast_non_dominated_sort(pop2)
